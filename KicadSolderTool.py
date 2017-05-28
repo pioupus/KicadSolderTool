@@ -6,6 +6,7 @@ import sys
 from PySide import QtCore, QtGui, QtSvg 
 import query_footprints
 import kicad_handler
+import kicad_bom_parser
 
 class TransfomationPointState(object):
     Nope = 0
@@ -19,19 +20,24 @@ class MainWindow(QtGui.QMainWindow):
         self.svg_filename_top = ''
 
         self.currentPath = ""
-
+        self.pcb_fileName = ""
+        
         self.area = SvgWindow(self)
 
         fileMenu = QtGui.QMenu(self.tr("&File"), self)
         self.openAction = fileMenu.addAction(self.tr("&Open..."))
         self.openAction.setShortcut(QtGui.QKeySequence(self.tr("Ctrl+O")))
+        self.openRecentAction = fileMenu.addAction(self.tr("&Open recent..."))
+        self.openTransformationAction = fileMenu.addAction(self.tr("&Open transformation..."))
         self.quitAction = fileMenu.addAction(self.tr("E&xit"))
         self.quitAction.setShortcut(QtGui.QKeySequence(self.tr("Ctrl+Q")))
 
         self.menuBar().addMenu(fileMenu)
         
         self.connect(self.openAction, QtCore.SIGNAL("triggered()"), self.openFile)
+        self.connect(self.openRecentAction, QtCore.SIGNAL("triggered()"), self.openRecent)
         self.connect(self.quitAction, QtCore.SIGNAL("triggered()"), QtGui.qApp, QtCore.SLOT("quit()"))
+        self.connect(self.openTransformationAction, QtCore.SIGNAL("triggered()"), self.openTransformation)
 
         self.spin_transformation_a_x = QtGui.QSpinBox()
         self.spin_transformation_a_y = QtGui.QSpinBox()
@@ -76,19 +82,19 @@ class MainWindow(QtGui.QMainWindow):
         
         self.spin_transformation_a_x.setMaximum(100000)
         self.spin_transformation_a_x.setMinimum(-100000)
-        self.spin_transformation_a_x.setValue(50)
+        self.spin_transformation_a_x.setValue(0)
         
         self.spin_transformation_a_y.setMaximum(100000)
         self.spin_transformation_a_y.setMinimum(-100000)
-        self.spin_transformation_a_y.setValue(30)
+        self.spin_transformation_a_y.setValue(0)
         
         self.spin_transformation_b_x.setMaximum(100000)
         self.spin_transformation_b_x.setMinimum(-100000)
-        self.spin_transformation_b_x.setValue(210)
+        self.spin_transformation_b_x.setValue(160)
         
         self.spin_transformation_b_y.setMaximum(100000)
         self.spin_transformation_b_y.setMinimum(-100000)
-        self.spin_transformation_b_y.setValue(130)
+        self.spin_transformation_b_y.setValue(100)
         
         self.spin_offset_x.setMaximum(100000)
         self.spin_offset_x.setMinimum(-100000)
@@ -113,6 +119,47 @@ class MainWindow(QtGui.QMainWindow):
         self.area.cursor().setShape(QtCore.Qt.CrossCursor)
         self.startTimer(250);
         
+
+    def openTransformation(self):
+        fileName = QtGui.QFileDialog.getOpenFileName(self, self.tr("Open Kicad board File"),
+                                                        self.currentPath, "*.trans")[0]
+        if fileName!="":
+            settings = QtCore.QSettings(fileName,QtCore.QSettings.IniFormat)
+            
+            self.spin_transformation_a_x.setValue(int(settings.value("pcb_ax",0)))
+            self.spin_transformation_a_y.setValue(int(settings.value("pcb_ay",0)))
+            self.spin_transformation_b_x.setValue(int(settings.value("pcb_bx",1)))
+            self.spin_transformation_b_y.setValue(int(settings.value("pcb_by",1)))
+            self.spin_offset_x.setValue(int(settings.value("off_x",1)))
+            self.spin_offset_y.setValue(int(settings.value("off_y",1)))
+            self.transform_target_topleft.setX(int(settings.value("view_ax",0)))
+            self.transform_target_topleft.setY(int(settings.value("view_ay",0)))
+            self.transform_target_bottom_right.setX(int(settings.value("view_bx",1)))
+            self.transform_target_bottom_right.setY(int(settings.value("view_by",1)))
+            self.calc_transform(0)
+
+    def saveTransformation(self):
+        if self.pcb_fileName!="":
+            print(self.pcb_fileName+'.trans')
+            settings = QtCore.QSettings(self.pcb_fileName+'.trans',QtCore.QSettings.IniFormat)
+            
+            settings.setValue("pcb_ax",self.spin_transformation_a_x.value())
+            settings.setValue("pcb_ay",self.spin_transformation_a_y.value())
+            settings.setValue("pcb_bx",self.spin_transformation_b_x.value())
+            settings.setValue("pcb_by",self.spin_transformation_b_y.value())
+            settings.setValue("off_x",self.spin_offset_x.value())
+            settings.setValue("off_y",self.spin_offset_y.value())
+            settings.setValue("view_ax",self.transform_target_topleft.x())
+            settings.setValue("view_ay",self.transform_target_topleft.y())
+            settings.setValue("view_bx",self.transform_target_bottom_right.x())
+            settings.setValue("view_by",self.transform_target_bottom_right.y())
+            settings.sync()
+            
+            
+    def openRecent(self):
+        fileName = QtCore.QSettings("./conf.ini",QtCore.QSettings.IniFormat).value("recent_file","");
+        self.openFile(fileName)
+        
     def openFile(self, path=""):
         if path=="":
             fileName = QtGui.QFileDialog.getOpenFileName(self, self.tr("Open Kicad board File"),
@@ -121,6 +168,8 @@ class MainWindow(QtGui.QMainWindow):
             fileName = path
 
         if fileName!="":
+            self.pcb_fileName = fileName
+            QtCore.QSettings("./conf.ini",QtCore.QSettings.IniFormat).setValue("recent_file",fileName);
             self.transform_target_topleft_set = False
             self.transform_target_bottom_right_set = False
             svg_filename_top = fileName+'top.svg'
@@ -185,7 +234,8 @@ class MainWindow(QtGui.QMainWindow):
             
             self.transFormMatrix.translate(self.transform_target_topleft.x(),self.transform_target_topleft.y())            
             self.transFormMatrix.scale(view_width/pcb_width,view_height/pcb_height)
-            self.transFormMatrix.translate(-self.spin_transformation_a_x.value(),-self.spin_transformation_a_y.value())            
+            self.transFormMatrix.translate(-self.spin_transformation_a_x.value(),-self.spin_transformation_a_y.value())
+            self.saveTransformation()
             
 
     def timerEvent(self,event):
@@ -294,16 +344,20 @@ class FootPrintList(QtGui.QDialog):
         self.owner = parent
         self.footprint_list = footprintlist
         self.list_widget = PartTreeWidget(self)
-        self.list_widget.setColumnCount(3)
-        self.btn_load_
+        self.list_widget.setColumnCount(4)
+        self.btn_load_bom = QtGui.QPushButton("load BOM")
         self.gridlayout = QtGui.QGridLayout()
+        self.gridlayout.addWidget(self.btn_load_bom)
         self.gridlayout.addWidget(self.list_widget)
+        
         self.setLayout(self.gridlayout)
         for footprint in self.footprint_list:        
             if footprint['bot']:
                 caption = 'bot'
             else:
                 caption = 'top'
+            if footprint['other_side']:
+                caption += "(also other side)"
             item = QtGui.QTreeWidgetItem(caption)
             item.setText(0,footprint['ref'])
             item.setText(1,caption)
@@ -311,10 +365,13 @@ class FootPrintList(QtGui.QDialog):
             item.setCheckState(0,QtCore.Qt.Unchecked)   
             
             self.list_widget.addTopLevelItem(item)
-          
+        for i in range(self.list_widget.columnCount()):
+            self.list_widget.resizeColumnToContents(i);
+        self.setMinimumWidth(600)
         self.show()
 
         self.connect(self.list_widget, QtCore.SIGNAL("itemSelectionChanged()"), self.on_select)
+        self.connect(self.btn_load_bom, QtCore.SIGNAL("clicked()"), self.on_load_bom)
         
     def on_select(self):
         item = self.list_widget.selectedItems()[0]
@@ -324,6 +381,20 @@ class FootPrintList(QtGui.QDialog):
         self.owner.set_marker(QtCore.QPointF(x,y),self.footprint_list[index]['bot'])
         
 
+    def on_load_bom(self):
+        fileName = QtGui.QFileDialog.getOpenFileName(self, self.tr("Open Kicad board File"),
+                                                    "", "*.xml")[0]
+        if fileName != "":
+            bomparser = kicad_bom_parser.BOMparser(fileName)
+            index = 0
+            for part in self.footprint_list:
+                info = bomparser.get_part_info(part['ref'])
+                item = self.list_widget.topLevelItem(index)
+                index += 1
+                item.setText(3,info['value'])
+        
+        
+        
 if __name__ == '__main__':
     app = QtGui.QApplication(sys.argv)
 
