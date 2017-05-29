@@ -9,13 +9,13 @@ class BOMparser():
         self.components = self.xmldoc.getElementsByTagName('components')[0]
         self.components = self.components.getElementsByTagName('comp')
         
-    def get_part_info(self,reference):
+    def get_part_info(self,reference,paramName):
         for comp in self.components:
             if comp.attributes['ref'].value == reference:
                 fields = comp.getElementsByTagName('fields')[0]
                 fields = fields.getElementsByTagName('field')
                 for field in fields:
-                    if field.attributes['name'].value == "DisplayValue":
+                    if field.attributes['name'].value == paramName:
                         return {"value":field.firstChild.nodeValue}
                 
                 

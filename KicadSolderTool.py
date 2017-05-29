@@ -78,7 +78,7 @@ class MainWindow(QtGui.QMainWindow):
         self.gridlayout.addWidget(self.area,2,0,2,0)
         self.c_widget.setLayout(self.gridlayout)
         self.setCentralWidget(self.c_widget)
-        self.setWindowTitle(self.tr("SVG Viewer"))
+        self.setWindowTitle(self.tr("Kicad Solder Tool"))
         
         self.spin_transformation_a_x.setMaximum(100000)
         self.spin_transformation_a_x.setMinimum(-100000)
@@ -157,7 +157,7 @@ class MainWindow(QtGui.QMainWindow):
             
             
     def openRecent(self):
-        fileName = QtCore.QSettings("./conf.ini",QtCore.QSettings.IniFormat).value("recent_file","");
+        fileName = QtCore.QSettings("./KicadSolderTool.ini",QtCore.QSettings.IniFormat).value("recent_file","");
         self.openFile(fileName)
         
     def openFile(self, path=""):
@@ -169,7 +169,7 @@ class MainWindow(QtGui.QMainWindow):
 
         if fileName!="":
             self.pcb_fileName = fileName
-            QtCore.QSettings("./conf.ini",QtCore.QSettings.IniFormat).setValue("recent_file",fileName);
+            QtCore.QSettings("./KicadSolderTool.ini",QtCore.QSettings.IniFormat).setValue("recent_file",fileName);
             self.transform_target_topleft_set = False
             self.transform_target_bottom_right_set = False
             svg_filename_top = fileName+'top.svg'
@@ -342,13 +342,31 @@ class FootPrintList(QtGui.QDialog):
     def __init__(self, parent, footprintlist):
         QtGui.QDialog.__init__(self, parent)
         self.owner = parent
+        self.combo_param_name = QtGui.QComboBox();
+        self.combo_param_name.setEditable(True)
         self.footprint_list = footprintlist
         self.list_widget = PartTreeWidget(self)
         self.list_widget.setColumnCount(4)
-        self.btn_load_bom = QtGui.QPushButton("load BOM")
+        self.btn_load_bom = QtGui.QPushButton("load Field from xml-BOM")
         self.gridlayout = QtGui.QGridLayout()
-        self.gridlayout.addWidget(self.btn_load_bom)
-        self.gridlayout.addWidget(self.list_widget)
+        self.label = QtGui.QLabel("Field name:")
+        self.gridlayout.addWidget(self.label,0,0,1,0)
+        self.gridlayout.addWidget(self.btn_load_bom,1,1)
+        self.gridlayout.addWidget(self.combo_param_name,1,0)
+        self.gridlayout.addWidget(self.list_widget,2,0,1,0)
+        self.label.setSizePolicy(QtGui.QSizePolicy.Minimum,QtGui.QSizePolicy.Minimum)
+        self.combo_param_name.setSizePolicy(QtGui.QSizePolicy.Minimum,QtGui.QSizePolicy.Minimum)
+        self.list_widget.setSizePolicy(QtGui.QSizePolicy.MinimumExpanding,QtGui.QSizePolicy.MinimumExpanding)
+        self.param_names = []
+        settings = QtCore.QSettings("./KicadSolderTool.ini",QtCore.QSettings.IniFormat)
+        size = settings.beginReadArray("param_names")
+        for i in range(size):
+            settings.setArrayIndex(i)
+            self.param_names.append(settings.value("key"))
+
+        settings.endArray()
+        self.combo_param_name.addItems(self.param_names)
+        self.combo_param_name.setCurrentIndex(int(settings.value("recent_field_name",0)))
         
         self.setLayout(self.gridlayout)
         for footprint in self.footprint_list:        
@@ -385,10 +403,22 @@ class FootPrintList(QtGui.QDialog):
         fileName = QtGui.QFileDialog.getOpenFileName(self, self.tr("Open Kicad board File"),
                                                     "", "*.xml")[0]
         if fileName != "":
+            settings = QtCore.QSettings("./KicadSolderTool.ini",QtCore.QSettings.IniFormat)
+            if self.combo_param_name.findText(self.combo_param_name.currentText()) == -1:
+                self.param_names.insert(0,self.combo_param_name.currentText())
+                self.combo_param_name.clear()
+                self.combo_param_name.addItems(self.param_names)
+                self.combo_param_name.setCurrentIndex(0)
+                settings.beginWriteArray("param_names")
+                for idx, value in enumerate(self.param_names):
+                    settings.setArrayIndex(idx)
+                    settings.setValue("key", value)
+                settings.endArray()
+            settings.setValue("recent_field_name",self.combo_param_name.currentIndex())
             bomparser = kicad_bom_parser.BOMparser(fileName)
             index = 0
             for part in self.footprint_list:
-                info = bomparser.get_part_info(part['ref'])
+                info = bomparser.get_part_info(part['ref'],self.combo_param_name.currentText())
                 item = self.list_widget.topLevelItem(index)
                 index += 1
                 item.setText(3,info['value'])
