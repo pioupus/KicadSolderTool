@@ -16,15 +16,20 @@ def test_of_module_exists_on_other_side(first_side, other_side):
 def compare(a,b):
     #print(str(a)+str(b))
     if a['area'] == b['area']:
+        if a['val'] == b['val']:
+            if a['ref'] > b['ref']:
+                #print (">")
+                return 1
+            else:
+                #print ("<")
+                return -1
         if a['val'] > b['val']:
             #print (">")
             return 1
-        elif a['val'] < b['val']: 
+        else:
             #print ("<")
             return -1
-        else:
-            #print ("==")
-            return 0
+
     elif a['area'] > b['area']:
         #print (">")
         return 1

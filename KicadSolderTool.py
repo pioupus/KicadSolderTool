@@ -239,7 +239,8 @@ class MainWindow(QtGui.QMainWindow):
             
 
     def timerEvent(self,event):
-        self.area.blink_marker()
+        #self.area.blink_marker()
+        pass
         
     def set_marker(self,point,is_bot):
         self.area.set_marker(self.transFormMatrix.map(point),is_bot)
@@ -251,6 +252,7 @@ class SvgWindow(QtGui.QGraphicsView):
         self.setTransformationAnchor(QtGui.QGraphicsView.AnchorUnderMouse);
         self.setDragMode(QtGui.QGraphicsView.ScrollHandDrag);
         self.setViewportUpdateMode(QtGui.QGraphicsView.FullViewportUpdate);
+        self.setRenderHints(0);
         self.scene = QtGui.QGraphicsScene();
         self.setScene(self.scene)
         self.offset_x = 0;
